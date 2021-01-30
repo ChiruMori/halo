@@ -49,7 +49,7 @@ management:
     web:
       base-path: /api/admin/actuator
       exposure:
-        include: ['httptrace', 'metrics','env','logfile','health']
+        include: [ 'httptrace', 'metrics','env','logfile','health' ]
 logging:
   level:
     run.halo.app: DEBUG
@@ -58,6 +58,10 @@ logging:
     org.hibernate.type.descriptor.sql.BasicExtractor: INFO
   file:
     path: ${user.home}/halo-dev/logs
+
+springfox:
+  documentation:
+    enabled: true
 
 halo:
   doc-disabled: false

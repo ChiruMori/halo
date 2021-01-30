@@ -1,8 +1,7 @@
 package run.halo.app.model.enums.converter;
 
-import run.halo.app.model.enums.LogType;
-
 import javax.persistence.Converter;
+import run.halo.app.model.enums.LogType;
 
 /**
  * Log type converter.
@@ -13,7 +12,4 @@ import javax.persistence.Converter;
 @Converter(autoApply = true)
 public class LogTypeConverter extends AbstractConverter<LogType, Integer> {
 
-    public LogTypeConverter() {
-        super(LogType.class);
-    }
 }

@@ -1,8 +1,7 @@
 package run.halo.app.model.enums.converter;
 
-import run.halo.app.model.enums.PostStatus;
-
 import javax.persistence.Converter;
+import run.halo.app.model.enums.PostStatus;
 
 /**
  * PostStatus converter.
@@ -13,7 +12,4 @@ import javax.persistence.Converter;
 @Converter(autoApply = true)
 public class PostStatusConverter extends AbstractConverter<PostStatus, Integer> {
 
-    public PostStatusConverter() {
-        super(PostStatus.class);
-    }
 }

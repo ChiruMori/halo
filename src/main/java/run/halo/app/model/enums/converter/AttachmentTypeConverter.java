@@ -1,8 +1,7 @@
 package run.halo.app.model.enums.converter;
 
-import run.halo.app.model.enums.AttachmentType;
-
 import javax.persistence.Converter;
+import run.halo.app.model.enums.AttachmentType;
 
 /**
  * Attachment type converter
@@ -13,7 +12,4 @@ import javax.persistence.Converter;
 @Converter(autoApply = true)
 public class AttachmentTypeConverter extends AbstractConverter<AttachmentType, Integer> {
 
-    public AttachmentTypeConverter() {
-        super(AttachmentType.class);
-    }
 }

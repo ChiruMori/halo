@@ -4,6 +4,9 @@ server:
   compression:
     enabled: false
 spring:
+  mvc:
+    pathmatch:
+      use-suffix-pattern: true
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
   devtools:
@@ -51,8 +54,13 @@ management:
 logging:
   level:
     run.halo.app: INFO
+    org.eclipse.jetty.server.HttpChannel: ERROR
   file:
     path: ${user.home}/.halo/logs
+
+springfox:
+  documentation:
+    enabled: false
 
 halo:
   download-timeout: 5m

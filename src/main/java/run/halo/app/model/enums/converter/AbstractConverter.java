@@ -1,8 +1,10 @@
 package run.halo.app.model.enums.converter;
 
-import run.halo.app.model.enums.ValueEnum;
-
+import java.lang.reflect.Type;
+import java.util.Objects;
 import javax.persistence.AttributeConverter;
+import run.halo.app.model.enums.ValueEnum;
+import run.halo.app.utils.ReflectionUtils;
 
 /**
  * Abstract converter.
@@ -12,12 +14,18 @@ import javax.persistence.AttributeConverter;
  * @author johnniang
  * @date 12/6/18
  */
-public abstract class AbstractConverter<E extends ValueEnum<V>, V> implements AttributeConverter<E, V> {
+public abstract class AbstractConverter<E extends ValueEnum<V>, V>
+    implements AttributeConverter<E, V> {
 
     private final Class<E> clazz;
 
-    protected AbstractConverter(Class<E> clazz) {
-        this.clazz = clazz;
+    @SuppressWarnings("unchecked")
+    protected AbstractConverter() {
+        Type enumType = Objects.requireNonNull(
+            ReflectionUtils
+                .getParameterizedTypeBySuperClass(AbstractConverter.class, this.getClass())
+        ).getActualTypeArguments()[0];
+        this.clazz = (Class<E>) enumType;
     }
 
     @Override

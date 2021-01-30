@@ -1,8 +1,7 @@
 package run.halo.app.model.enums.converter;
 
-import run.halo.app.model.enums.PostType;
-
 import javax.persistence.Converter;
+import run.halo.app.model.enums.PostType;
 
 /**
  * PostType converter.
@@ -14,7 +13,4 @@ import javax.persistence.Converter;
 @Deprecated
 public class PostTypeConverter extends AbstractConverter<PostType, Integer> {
 
-    public PostTypeConverter() {
-        super(PostType.class);
-    }
 }

@@ -1,8 +1,7 @@
 package run.halo.app.model.enums.converter;
 
-import run.halo.app.model.enums.DataType;
-
 import javax.persistence.Converter;
+import run.halo.app.model.enums.DataType;
 
 /**
  * Data type converter.
@@ -13,7 +12,4 @@ import javax.persistence.Converter;
 @Converter(autoApply = true)
 public class DataTypeConverter extends AbstractConverter<DataType, Integer> {
 
-    public DataTypeConverter() {
-        super(DataType.class);
-    }
 }
