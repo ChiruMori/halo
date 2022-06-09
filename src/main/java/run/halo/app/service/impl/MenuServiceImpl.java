@@ -1,18 +1,18 @@
 package run.halo.app.service.impl;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-import run.halo.app.exception.AlreadyExistsException;
 import run.halo.app.model.dto.MenuDTO;
 import run.halo.app.model.entity.Menu;
 import run.halo.app.model.params.MenuParam;
@@ -21,6 +21,7 @@ import run.halo.app.model.vo.MenuVO;
 import run.halo.app.repository.MenuRepository;
 import run.halo.app.service.MenuService;
 import run.halo.app.service.base.AbstractCrudService;
+import run.halo.app.utils.BeanUtils;
 import run.halo.app.utils.ServiceUtils;
 
 /**
@@ -40,14 +41,16 @@ public class MenuServiceImpl extends AbstractCrudService<Menu, Integer> implemen
     }
 
     @Override
-    public @NonNull List<MenuDTO> listDtos(@NonNull Sort sort) {
+    public @NonNull
+    List<MenuDTO> listDtos(@NonNull Sort sort) {
         Assert.notNull(sort, "Sort info must not be null");
 
         return convertTo(listAll(sort));
     }
 
     @Override
-    public @NonNull List<MenuTeamVO> listTeamVos(@NonNull Sort sort) {
+    public @NonNull
+    List<MenuTeamVO> listTeamVos(@NonNull Sort sort) {
         Assert.notNull(sort, "Sort info must not be null");
 
         // List all menus
@@ -101,7 +104,8 @@ public class MenuServiceImpl extends AbstractCrudService<Menu, Integer> implemen
     }
 
     @Override
-    public @NonNull Menu createBy(@NonNull MenuParam menuParam) {
+    public @NonNull
+    Menu createBy(@NonNull MenuParam menuParam) {
         Assert.notNull(menuParam, "Menu param must not be null");
 
         // Create an return
@@ -141,13 +145,31 @@ public class MenuServiceImpl extends AbstractCrudService<Menu, Integer> implemen
     }
 
     @Override
-    public @NonNull Menu create(@NonNull Menu menu) {
+    public @NonNull
+    Menu create(@NonNull Menu menu) {
         return super.create(menu);
     }
 
     @Override
-    public @NonNull Menu update(@NonNull Menu menu) {
+    public @NonNull
+    Menu update(@NonNull Menu menu) {
         return super.update(menu);
+    }
+
+    @Override
+    @NonNull
+    @Transactional(rollbackFor = Exception.class)
+    public List<Menu> updateInBatch(@NonNull Collection<Menu> menus) {
+        Set<Integer> menuIds = ServiceUtils.fetchProperty(menus, Menu::getId);
+        Map<Integer, Menu> idMenuParamMap = ServiceUtils.convertToMap(menus, Menu::getId);
+        return menuRepository.findAllById(menuIds)
+            .stream()
+            .map(menuToUpdate -> {
+                Menu menuParam = idMenuParamMap.get(menuToUpdate.getId());
+                BeanUtils.updateProperties(menuParam, menuToUpdate);
+                return update(menuToUpdate);
+            })
+            .collect(Collectors.toList());
     }
 
     /**
@@ -214,24 +236,5 @@ public class MenuServiceImpl extends AbstractCrudService<Menu, Integer> implemen
         return menus.stream()
             .map(menu -> (MenuDTO) new MenuDTO().convertFrom(menu))
             .collect(Collectors.toList());
-    }
-
-    @Deprecated
-    private void nameMustNotExist(@NonNull Menu menu) {
-        Assert.notNull(menu, "Menu must not be null");
-
-        boolean exist = false;
-
-        if (ServiceUtils.isEmptyId(menu.getId())) {
-            // Create action
-            exist = menuRepository.existsByName(menu.getName());
-        } else {
-            // Update action
-            exist = menuRepository.existsByIdNotAndName(menu.getId(), menu.getName());
-        }
-
-        if (exist) {
-            throw new AlreadyExistsException("菜单 " + menu.getName() + " 已存在");
-        }
     }
 }

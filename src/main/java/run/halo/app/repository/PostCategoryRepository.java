@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.lang.NonNull;
 import run.halo.app.model.entity.PostCategory;
 import run.halo.app.model.enums.PostStatus;
-import run.halo.app.model.projection.CategoryPostCountProjection;
+import run.halo.app.model.projection.CategoryIdPostStatusProjection;
 import run.halo.app.repository.base.BaseRepository;
 
 
@@ -56,6 +56,19 @@ public interface PostCategoryRepository extends BaseRepository<PostCategory, Int
         @NonNull PostStatus status);
 
     /**
+     * Finds all post ids by category id and post status.
+     *
+     * @param categoryId category id must not be null
+     * @param status     post status must not be empty
+     * @return a set of post id
+     */
+    @NonNull
+    @Query("select postCategory.postId from PostCategory postCategory, Post post where"
+        + " postCategory.categoryId = ?1 and post.id = postCategory.postId and post.status in (?2)")
+    Set<Integer> findAllPostIdsByCategoryId(
+        @NonNull Integer categoryId, @NonNull Set<PostStatus> status);
+
+    /**
      * Finds all post categories by post id in.
      *
      * @param postIds post id collection must not be null
@@ -100,8 +113,23 @@ public interface PostCategoryRepository extends BaseRepository<PostCategory, Int
     @NonNull
     List<PostCategory> deleteByCategoryId(@NonNull Integer categoryId);
 
-    @Query("select new run.halo.app.model.projection.CategoryPostCountProjection(count(pc.postId)"
-        + ", pc.categoryId) from PostCategory pc group by pc.categoryId")
+    /**
+     * Finds all post categories by category id list.
+     *
+     * @param categoryIdList category id list must not be empty
+     * @return a list of post category
+     */
+    @Query("select pc from PostCategory pc where pc.categoryId in (?1)")
     @NonNull
-    List<CategoryPostCountProjection> findPostCount();
+    List<PostCategory> findAllByCategoryIdList(List<Integer> categoryIdList);
+
+    /**
+     * Finds all category ids with post id and status.
+     *
+     * @return a list of category id and post status
+     */
+    @NonNull
+    @Query("select new run.halo.app.model.projection.CategoryIdPostStatusProjection(pc.categoryId,"
+        + " pc.postId, p.status) from PostCategory pc inner join Post p on p.id=pc.postId")
+    List<CategoryIdPostStatusProjection> findAllWithPostStatus();
 }

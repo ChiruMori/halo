@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import run.halo.app.exception.BadRequestException;
-import run.halo.app.model.dto.JournalDTO;
 import run.halo.app.model.dto.JournalWithCmtCountDTO;
 import run.halo.app.model.entity.Journal;
 import run.halo.app.model.entity.JournalComment;
+import run.halo.app.model.enums.CommentStatus;
 import run.halo.app.model.enums.JournalType;
 import run.halo.app.model.params.JournalParam;
 import run.halo.app.model.params.JournalQuery;
@@ -30,7 +30,6 @@ import run.halo.app.repository.JournalRepository;
 import run.halo.app.service.JournalCommentService;
 import run.halo.app.service.JournalService;
 import run.halo.app.service.base.AbstractCrudService;
-import run.halo.app.utils.MarkdownUtils;
 import run.halo.app.utils.ServiceUtils;
 
 /**
@@ -61,7 +60,6 @@ public class JournalServiceImpl extends AbstractCrudService<Journal, Integer>
         Assert.notNull(journalParam, "Journal param must not be null");
 
         Journal journal = journalParam.convertTo();
-        journal.setContent(MarkdownUtils.renderHtml(journal.getSourceContent()));
 
         return create(journal);
     }
@@ -69,9 +67,6 @@ public class JournalServiceImpl extends AbstractCrudService<Journal, Integer>
     @Override
     public Journal updateBy(Journal journal) {
         Assert.notNull(journal, "Journal must not be null");
-
-        journal.setContent(MarkdownUtils.renderHtml(journal.getSourceContent()));
-
         return update(journal);
     }
 
@@ -106,10 +101,16 @@ public class JournalServiceImpl extends AbstractCrudService<Journal, Integer>
     }
 
     @Override
-    public JournalDTO convertTo(Journal journal) {
+    public JournalWithCmtCountDTO convertTo(Journal journal) {
         Assert.notNull(journal, "Journal must not be null");
 
-        return new JournalDTO().convertFrom(journal);
+        JournalWithCmtCountDTO journalWithCmtCountDto = new JournalWithCmtCountDTO()
+            .convertFrom(journal);
+
+        journalWithCmtCountDto.setCommentCount(journalCommentService.countByStatusAndPostId(
+            CommentStatus.PUBLISHED, journal.getId()));
+
+        return journalWithCmtCountDto;
     }
 
     @Override
@@ -123,7 +124,7 @@ public class JournalServiceImpl extends AbstractCrudService<Journal, Integer>
 
         // Get comment count map
         Map<Integer, Long> journalCommentCountMap =
-            journalCommentService.countByPostIds(journalIds);
+            journalCommentService.countByStatusAndPostIds(CommentStatus.PUBLISHED, journalIds);
 
         return journals.stream()
             .map(journal -> {
@@ -182,7 +183,7 @@ public class JournalServiceImpl extends AbstractCrudService<Journal, Integer>
     private Specification<Journal> buildSpecByQuery(@NonNull JournalQuery journalQuery) {
         Assert.notNull(journalQuery, "Journal query must not be null");
 
-        return (Specification<Journal>) (root, query, criteriaBuilder) -> {
+        return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new LinkedList<>();
 
             if (journalQuery.getType() != null) {

@@ -16,11 +16,11 @@ import run.halo.app.annotation.DisableOnCondition;
 import run.halo.app.cache.lock.CacheLock;
 import run.halo.app.model.dto.EnvironmentDTO;
 import run.halo.app.model.dto.LoginPreCheckDTO;
-import run.halo.app.model.dto.StatisticDTO;
 import run.halo.app.model.entity.User;
 import run.halo.app.model.enums.MFAType;
 import run.halo.app.model.params.LoginParam;
 import run.halo.app.model.params.ResetPasswordParam;
+import run.halo.app.model.params.ResetPasswordSendCodeParam;
 import run.halo.app.model.properties.PrimaryProperties;
 import run.halo.app.model.support.BaseResponse;
 import run.halo.app.security.token.AuthToken;
@@ -51,8 +51,8 @@ public class AdminController {
     @GetMapping(value = "/is_installed")
     @ApiOperation("Checks Installation status")
     public boolean isInstall() {
-        return optionService
-            .getByPropertyOrDefault(PrimaryProperties.IS_INSTALLED, Boolean.class, false);
+        return optionService.getByPropertyOrDefault(PrimaryProperties.IS_INSTALLED, Boolean.class,
+            false);
     }
 
     @PostMapping("login/precheck")
@@ -81,7 +81,7 @@ public class AdminController {
     @ApiOperation("Sends reset password verify code")
     @CacheLock(autoDelete = false)
     @DisableOnCondition
-    public void sendResetCode(@RequestBody @Valid ResetPasswordParam param) {
+    public void sendResetCode(@RequestBody @Valid ResetPasswordSendCodeParam param) {
         adminService.sendResetPasswordCode(param);
     }
 
@@ -98,13 +98,6 @@ public class AdminController {
     @CacheLock(autoDelete = false)
     public AuthToken refresh(@PathVariable("refreshToken") String refreshToken) {
         return adminService.refreshToken(refreshToken);
-    }
-
-    @GetMapping("counts")
-    @ApiOperation("Gets count info")
-    @Deprecated
-    public StatisticDTO getCount() {
-        return adminService.getCount();
     }
 
     @GetMapping("environments")

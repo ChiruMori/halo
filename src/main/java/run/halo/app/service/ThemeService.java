@@ -1,13 +1,14 @@
 package run.halo.app.service;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.web.multipart.MultipartFile;
 import run.halo.app.handler.theme.config.support.Group;
+import run.halo.app.handler.theme.config.support.Item;
 import run.halo.app.handler.theme.config.support.ThemeProperty;
 import run.halo.app.model.support.ThemeFile;
 
@@ -15,22 +16,10 @@ import run.halo.app.model.support.ThemeFile;
  * Theme service interface.
  *
  * @author ryanwang
+ * @author guqing
  * @date 2019-03-26
  */
 public interface ThemeService {
-
-    /**
-     * Theme property file name.
-     */
-    @Deprecated
-    String THEME_PROPERTY_FILE_NAME = "theme.yaml";
-
-    /**
-     * Theme property file name.
-     */
-    @Deprecated
-    String[] THEME_PROPERTY_FILE_NAMES = {"theme.yaml", "theme.yml"};
-
 
     /**
      * Configuration file name.
@@ -43,32 +32,9 @@ public interface ThemeService {
     String[] CAN_EDIT_SUFFIX = {".ftl", ".css", ".js", ".yaml", ".yml", ".properties"};
 
     /**
-     * These file names cannot be displayed.
-     */
-    String[] FILTER_FILES =
-        {".git", ".DS_Store", "theme.yaml", "theme.yml", "settings.yaml", "settings.yml"};
-
-    /**
      * Theme folder location.
      */
     String THEME_FOLDER = "templates/themes";
-
-    /**
-     * Theme screenshots name.
-     */
-    @Deprecated
-    String THEME_SCREENSHOTS_NAME = "screenshot";
-
-
-    /**
-     * Render template.
-     */
-    String RENDER_TEMPLATE = "themes/%s/%s";
-
-    /**
-     * Render template with suffix.
-     */
-    String RENDER_TEMPLATE_SUFFIX = "themes/%s/%s.ftl";
 
     /**
      * Theme cache key.
@@ -84,26 +50,6 @@ public interface ThemeService {
      * Custom post template prefix.
      */
     String CUSTOM_POST_PREFIX = "post_";
-
-    /**
-     * Theme provider remote name.
-     */
-    String THEME_PROVIDER_REMOTE_NAME = "origin";
-
-    /**
-     * Default remote branch name.
-     */
-    String DEFAULT_REMOTE_BRANCH = "master";
-
-    /**
-     * Key to access the zip file url which is in the http response
-     */
-    String ZIP_FILE_KEY = "zipball_url";
-
-    /**
-     * Key to access the tag name which is in the http response
-     */
-    String TAG_KEY = "tag_name";
 
     /**
      * Get theme property by theme id.
@@ -124,7 +70,7 @@ public interface ThemeService {
     Optional<ThemeProperty> fetchThemePropertyBy(@Nullable String themeId);
 
     /**
-     * Gets all themes
+     * Gets all themes.
      *
      * @return set of themes
      */
@@ -141,16 +87,6 @@ public interface ThemeService {
     List<ThemeFile> listThemeFolderBy(@NonNull String themeId);
 
     /**
-     * Lists a set of custom template, such as sheet_xxx.ftl, and xxx will be template name
-     *
-     * @param themeId theme id must not be blank
-     * @return a set of templates
-     */
-    @Deprecated
-    @NonNull
-    List<String> listCustomTemplates(@NonNull String themeId);
-
-    /**
      * Lists a set of custom template, such as sheet_xxx.ftl/post_xxx.ftl, and xxx will be
      * template name
      *
@@ -162,7 +98,7 @@ public interface ThemeService {
     List<String> listCustomTemplates(@NonNull String themeId, @NonNull String prefix);
 
     /**
-     * Judging whether template exists under the specified theme
+     * Judging whether template exists under the specified theme.
      *
      * @param template template must not be blank
      * @return boolean
@@ -170,7 +106,7 @@ public interface ThemeService {
     boolean templateExists(@Nullable String template);
 
     /**
-     * Checks whether theme exists under template path
+     * Checks whether theme exists under template path.
      *
      * @param themeId theme id
      * @return boolean
@@ -237,6 +173,15 @@ public interface ThemeService {
     List<Group> fetchConfig(@NonNull String themeId);
 
     /**
+     * Fetch config items by <code>themeId</code> and <code>group</code>.
+     *
+     * @param themeId theme id must not be blank
+     * @param group group name must not be blank
+     * @return config items
+     */
+    Set<Item> fetchConfigItemsBy(@NonNull String themeId, String group);
+
+    /**
      * Renders a theme page.
      *
      * @param pageName must not be blank
@@ -297,17 +242,6 @@ public interface ThemeService {
     ThemeProperty upload(@NonNull MultipartFile file);
 
     /**
-     * Adds a new theme.
-     *
-     * @param themeTmpPath theme temporary path must not be null
-     * @return theme property
-     * @throws IOException IOException
-     */
-    @NonNull
-    @Deprecated
-    ThemeProperty add(@NonNull Path themeTmpPath) throws IOException;
-
-    /**
      * Fetches a new theme.
      *
      * @param uri theme remote uri must not be null
@@ -315,58 +249,6 @@ public interface ThemeService {
      */
     @NonNull
     ThemeProperty fetch(@NonNull String uri);
-
-    /**
-     * Fetches the latest release
-     *
-     * @param uri theme remote uri must not be null
-     * @return theme property
-     */
-    @NonNull
-    @Deprecated(since = "1.4.2", forRemoval = true)
-    ThemeProperty fetchLatestRelease(@NonNull String uri);
-
-    /**
-     * Fetches all the branches info
-     *
-     * @param uri theme remote uri must not be null
-     * @return list of theme properties
-     */
-    @NonNull
-    @Deprecated(since = "1.4.2", forRemoval = true)
-    List<ThemeProperty> fetchBranches(@NonNull String uri);
-
-    /**
-     * Fetches all the release info
-     *
-     * @param uri theme remote uri must not be null
-     * @return list of theme properties
-     */
-    @NonNull
-    @Deprecated(since = "1.4.2", forRemoval = true)
-    List<ThemeProperty> fetchReleases(@NonNull String uri);
-
-    /**
-     * Fetches a specific release
-     *
-     * @param uri theme remote uri must not be null
-     * @param tagName release tag name must not be null
-     * @return theme property
-     */
-    @NonNull
-    @Deprecated(since = "1.4.2", forRemoval = true)
-    ThemeProperty fetchRelease(@NonNull String uri, @NonNull String tagName);
-
-    /**
-     * Fetches a specific branch (clone)
-     *
-     * @param uri theme remote uri must not be null
-     * @param branchName wanted branch must not be null
-     * @return theme property
-     */
-    @NonNull
-    @Deprecated(since = "1.4.2", forRemoval = true)
-    ThemeProperty fetchBranch(@NonNull String uri, @NonNull String branchName);
 
     /**
      * Reloads themes

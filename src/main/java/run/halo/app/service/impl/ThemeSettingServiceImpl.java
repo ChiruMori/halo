@@ -2,7 +2,6 @@ package run.halo.app.service.impl;
 
 import freemarker.template.Configuration;
 import freemarker.template.TemplateModelException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Example;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
@@ -122,6 +122,7 @@ public class ThemeSettingServiceImpl extends AbstractCrudService<ThemeSetting, I
         }
     }
 
+    @NonNull
     @Override
     public List<ThemeSetting> listBy(String themeId) {
         assertThemeIdHasText(themeId);
@@ -129,10 +130,29 @@ public class ThemeSettingServiceImpl extends AbstractCrudService<ThemeSetting, I
         return themeSettingRepository.findAllByThemeId(themeId);
     }
 
+    @NonNull
     @Override
-    public Map<String, Object> listAsMapBy(String themeId) {
+    public Map<String, Object> listAsMapBy(@NonNull String themeId) {
         // Convert to item map(key: item name, value: item)
         Map<String, Item> itemMap = getConfigItemMap(themeId);
+
+        return listAsMapBy(themeId, itemMap);
+    }
+
+    @NonNull
+    @Override
+    public Map<String, Object> listAsMapBy(String themeId, String group) {
+        // Convert to item map(key: item name, value: item)
+        Set<Item> items = themeService.fetchConfigItemsBy(themeId, group);
+        Map<String, Item> itemMap = ServiceUtils.convertToMap(items, Item::getName);
+
+        return listAsMapBy(themeId, itemMap);
+    }
+
+    @NotNull
+    private Map<String, Object> listAsMapBy(String themeId, Map<String, Item> itemMap) {
+        Assert.notNull(themeId, "The themeId must not be null.");
+        Assert.notNull(itemMap, "The itemMap must not be null.");
 
         // Get theme setting
         List<ThemeSetting> themeSettings = listBy(themeId);
@@ -171,21 +191,7 @@ public class ThemeSettingServiceImpl extends AbstractCrudService<ThemeSetting, I
 
             result.put(name, convertedDefaultValue);
         });
-
         return result;
-    }
-
-    @Override
-    public List<ThemeSetting> replaceUrl(String oldUrl, String newUrl) {
-        List<ThemeSetting> themeSettings = listAll();
-        List<ThemeSetting> replaced = new ArrayList<>();
-        themeSettings.forEach(themeSetting -> {
-            if (StringUtils.isNotEmpty(themeSetting.getValue())) {
-                themeSetting.setValue(themeSetting.getValue().replaceAll(oldUrl, newUrl));
-            }
-            replaced.add(themeSetting);
-        });
-        return updateInBatch(replaced);
     }
 
     @Override

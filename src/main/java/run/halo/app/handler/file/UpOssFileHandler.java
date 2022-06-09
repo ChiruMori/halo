@@ -107,6 +107,7 @@ public class UpOssFileHandler implements FileHandler {
                         filePath + thumbnailStyleRule;
                 }
             });
+            result.close();
             return uploadResult;
         } catch (Exception e) {
             throw new FileOperationException("上传附件 " + file.getOriginalFilename() + " 到又拍云失败", e);
@@ -132,6 +133,7 @@ public class UpOssFileHandler implements FileHandler {
             Response result = manager.deleteFile(key, null);
             if (!result.isSuccessful()) {
                 log.warn("附件 " + key + " 从又拍云删除失败");
+                throw new FileOperationException("附件 " + key + " 从又拍云删除失败");
             }
         } catch (IOException | UpException e) {
             e.printStackTrace();

@@ -2,14 +2,15 @@ package run.halo.app.controller.admin.api;
 
 import static org.springframework.data.domain.Sort.Direction.DESC;
 
-import cn.hutool.core.util.IdUtil;
 import io.swagger.annotations.ApiOperation;
 import java.io.UnsupportedEncodingException;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.validation.Valid;
+import org.apache.http.client.utils.URIBuilder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -27,7 +28,6 @@ import run.halo.app.model.dto.post.BasePostDetailDTO;
 import run.halo.app.model.dto.post.BasePostMinimalDTO;
 import run.halo.app.model.dto.post.BasePostSimpleDTO;
 import run.halo.app.model.entity.Post;
-import run.halo.app.model.enums.PostPermalinkType;
 import run.halo.app.model.enums.PostStatus;
 import run.halo.app.model.params.PostContentParam;
 import run.halo.app.model.params.PostParam;
@@ -35,6 +35,8 @@ import run.halo.app.model.params.PostQuery;
 import run.halo.app.model.vo.PostDetailVO;
 import run.halo.app.service.OptionService;
 import run.halo.app.service.PostService;
+import run.halo.app.service.assembler.PostAssembler;
+import run.halo.app.utils.HaloUtils;
 
 /**
  * Post controller.
@@ -54,12 +56,16 @@ public class PostController {
 
     private final OptionService optionService;
 
+    private final PostAssembler postAssembler;
+
     public PostController(PostService postService,
         AbstractStringCacheStore cacheStore,
-        OptionService optionService) {
+        OptionService optionService,
+        PostAssembler postAssembler) {
         this.postService = postService;
         this.cacheStore = cacheStore;
         this.optionService = optionService;
+        this.postAssembler = postAssembler;
     }
 
     @GetMapping
@@ -70,17 +76,17 @@ public class PostController {
         @RequestParam(value = "more", defaultValue = "true") Boolean more) {
         Page<Post> postPage = postService.pageBy(postQuery, pageable);
         if (more) {
-            return postService.convertToListVo(postPage);
+            return postAssembler.convertToListVo(postPage);
         }
 
-        return postService.convertToSimple(postPage);
+        return postAssembler.convertToSimple(postPage);
     }
 
     @GetMapping("latest")
     @ApiOperation("Pages latest post")
     public List<BasePostMinimalDTO> pageLatest(
         @RequestParam(name = "top", defaultValue = "10") int top) {
-        return postService.convertToMinimal(postService.pageLatest(top).getContent());
+        return postAssembler.convertToMinimal(postService.pageLatest(top).getContent());
     }
 
     @GetMapping("status/{status}")
@@ -92,17 +98,17 @@ public class PostController {
         Page<Post> posts = postService.pageBy(status, pageable);
 
         if (more) {
-            return postService.convertToListVo(posts);
+            return postAssembler.convertToListVo(posts);
         }
 
-        return postService.convertToSimple(posts);
+        return postAssembler.convertToSimple(posts);
     }
 
     @GetMapping("{postId:\\d+}")
     @ApiOperation("Gets a post")
     public PostDetailVO getBy(@PathVariable("postId") Integer postId) {
-        Post post = postService.getById(postId);
-        return postService.convertToDetailVo(post);
+        Post post = postService.getWithLatestContentById(postId);
+        return postAssembler.convertToDetailVo(post);
     }
 
     @PutMapping("{postId:\\d+}/likes")
@@ -114,8 +120,8 @@ public class PostController {
     @PostMapping
     @ApiOperation("Creates a post")
     public PostDetailVO createBy(@Valid @RequestBody PostParam postParam,
-        @RequestParam(value = "autoSave", required = false, defaultValue = "false")
-            Boolean autoSave) {
+        @RequestParam(value = "autoSave", required = false, defaultValue = "false") Boolean autoSave
+    ) {
         // Convert to
         Post post = postParam.convertTo();
         return postService.createBy(post, postParam.getTagIds(), postParam.getCategoryIds(),
@@ -126,10 +132,10 @@ public class PostController {
     @ApiOperation("Updates a post")
     public PostDetailVO updateBy(@Valid @RequestBody PostParam postParam,
         @PathVariable("postId") Integer postId,
-        @RequestParam(value = "autoSave", required = false, defaultValue = "false")
-            Boolean autoSave) {
+        @RequestParam(value = "autoSave", required = false, defaultValue = "false") Boolean autoSave
+    ) {
         // Get the post info
-        Post postToUpdate = postService.getById(postId);
+        Post postToUpdate = postService.getWithLatestContentById(postId);
 
         postParam.update(postToUpdate);
         return postService.updateBy(postToUpdate, postParam.getTagIds(), postParam.getCategoryIds(),
@@ -158,14 +164,16 @@ public class PostController {
     public BasePostDetailDTO updateDraftBy(
         @PathVariable("postId") Integer postId,
         @RequestBody PostContentParam contentParam) {
+        Post postToUse = postService.getById(postId);
+        String formattedContent = contentParam.decideContentBy(postToUse.getEditorType());
         // Update draft content
-        Post post = postService.updateDraftContent(contentParam.getContent(), postId);
-
-        return new BasePostDetailDTO().convertFrom(post);
+        Post post = postService.updateDraftContent(formattedContent,
+            contentParam.getOriginalContent(), postId);
+        return postAssembler.convertToDetail(post);
     }
 
     @DeleteMapping("{postId:\\d+}")
-    @ApiOperation("Deletes a photo permanently")
+    @ApiOperation("Deletes a post permanently")
     public void deletePermanently(@PathVariable("postId") Integer postId) {
         postService.removeById(postId);
     }
@@ -179,14 +187,14 @@ public class PostController {
     @GetMapping(value = {"preview/{postId:\\d+}", "{postId:\\d+}/preview"})
     @ApiOperation("Gets a post preview link")
     public String preview(@PathVariable("postId") Integer postId)
-        throws UnsupportedEncodingException {
+        throws UnsupportedEncodingException, URISyntaxException {
         Post post = postService.getById(postId);
 
         post.setSlug(URLEncoder.encode(post.getSlug(), StandardCharsets.UTF_8.name()));
 
-        BasePostMinimalDTO postMinimalDTO = postService.convertToMinimal(post);
+        BasePostMinimalDTO postMinimalDTO = postAssembler.convertToMinimal(post);
 
-        String token = IdUtil.simpleUUID();
+        String token = HaloUtils.simpleUUID();
 
         // cache preview token
         cacheStore.putAny(token, token, 10, TimeUnit.MINUTES);
@@ -199,15 +207,9 @@ public class PostController {
 
         previewUrl.append(postMinimalDTO.getFullPath());
 
-        if (optionService.getPostPermalinkType().equals(PostPermalinkType.ID)) {
-            previewUrl.append("&token=")
-                .append(token);
-        } else {
-            previewUrl.append("?token=")
-                .append(token);
-        }
-
         // build preview post url and return
-        return previewUrl.toString();
+        return new URIBuilder(previewUrl.toString())
+            .addParameter("token", token)
+            .build().toString();
     }
 }

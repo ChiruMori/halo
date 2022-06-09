@@ -1,12 +1,12 @@
 package run.halo.app.service.impl;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,7 +14,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
+import run.halo.app.exception.BadRequestException;
 import run.halo.app.model.dto.PhotoDTO;
 import run.halo.app.model.entity.Photo;
 import run.halo.app.model.params.PhotoParam;
@@ -26,11 +28,13 @@ import run.halo.app.service.base.AbstractCrudService;
 import run.halo.app.utils.ServiceUtils;
 
 /**
- * PhotoService implementation class
+ * PhotoService implementation class.
  *
  * @author ryanwang
+ * @author guqing
  * @date 2019-03-14
  */
+@Slf4j
 @Service
 public class PhotoServiceImpl extends AbstractCrudService<Photo, Integer> implements PhotoService {
 
@@ -118,28 +122,24 @@ public class PhotoServiceImpl extends AbstractCrudService<Photo, Integer> implem
     }
 
     @Override
-    public List<PhotoDTO> replaceUrl(String oldUrl, String newUrl) {
-        List<Photo> photos = listAll();
-        List<Photo> replaced = new ArrayList<>();
-        photos.forEach(photo -> {
-            if (StringUtils.isNotEmpty(photo.getThumbnail())) {
-                photo.setThumbnail(photo.getThumbnail().replace(oldUrl, newUrl));
-            }
-            if (StringUtils.isNotEmpty(photo.getUrl())) {
-                photo.setUrl(photo.getUrl().replaceAll(oldUrl, newUrl));
-            }
-            replaced.add(photo);
-        });
-        List<Photo> updated = updateInBatch(replaced);
-        return updated.stream().map(photo -> (PhotoDTO) new PhotoDTO().convertFrom(photo))
-            .collect(Collectors.toList());
+    @Transactional
+    public void increaseLike(Integer photoId) {
+        Assert.notNull(photoId, "Photo id must not be null");
+
+        int affectedRows = photoRepository.updateLikes(1L, photoId);
+
+        if (affectedRows != 1) {
+            log.error("Photo with id: [{}] may not be found", photoId);
+            throw new BadRequestException(
+                "Failed to increase likes 1 for photo with id " + photoId);
+        }
     }
 
     @NonNull
     private Specification<Photo> buildSpecByQuery(@NonNull PhotoQuery photoQuery) {
         Assert.notNull(photoQuery, "Photo query must not be null");
 
-        return (Specification<Photo>) (root, query, criteriaBuilder) -> {
+        return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new LinkedList<>();
 
             if (photoQuery.getTeam() != null) {

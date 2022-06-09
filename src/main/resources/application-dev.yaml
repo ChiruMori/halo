@@ -2,13 +2,16 @@ server:
   port: 8090
   forward-headers-strategy: native
   compression:
-    enabled: false
+    enabled: true
 spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
   output:
     ansi:
       enabled: always
+  devtools:
+    restart:
+      enabled: true
   datasource:
     # H2 database configuration.
 #    type: com.zaxxer.hikari.HikariDataSource
@@ -44,6 +47,10 @@ spring:
       max-request-size: 10240MB
   cache:
     type: none
+  redis:
+    port: 6379
+    database: 0
+    host: 127.0.0.1
 management:
   endpoints:
     web:
@@ -57,7 +64,7 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: INFO
     org.hibernate.type.descriptor.sql.BasicExtractor: INFO
   file:
-    path: ${user.home}/halo-dev/logs
+    path: ${halo.work-dir}/logs
 
 springfox:
   documentation:

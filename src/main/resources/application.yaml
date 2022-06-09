@@ -1,16 +1,17 @@
 server:
   port: 8090
   forward-headers-strategy: native
-  compression:
-    enabled: false
+  error:
+    include-message: always
 spring:
+  devtools:
+    restart:
+      enabled: false
   mvc:
     pathmatch:
       use-suffix-pattern: true
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
-  devtools:
-    add-properties: false
   output:
     ansi:
       enabled: always
@@ -35,7 +36,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false
     open-in-view: false
     database-platform: org.hibernate.dialect.MySQL5InnoDBDialect
   flyway:
@@ -44,19 +44,34 @@ spring:
     multipart:
       max-file-size: 10240MB
       max-request-size: 10240MB
-      location: /tmp/run.halo.app
+      resolve-lazily: true
+  freemarker:
+    suffix: .ftl
+    settings:
+      auto_import: /common/macro/global_macro.ftl as global
+    template-loader-path:
+      - file:///${halo.work-dir}/templates/
+      - classpath:/templates/
+    expose-spring-macro-helpers: false
+  data:
+    redis:
+      repositories:
+        enabled: false
 management:
   endpoints:
     web:
       base-path: /api/admin/actuator
       exposure:
-        include: [ 'httptrace', 'metrics','env','logfile','health' ]
+        include: [ 'httptrace', 'metrics', 'env', 'logfile', 'health' ]
+  health:
+    redis:
+      enabled: false
 logging:
   level:
     run.halo.app: INFO
     org.eclipse.jetty.server.HttpChannel: ERROR
   file:
-    path: ${user.home}/.halo/logs
+    path: ${halo.work-dir}/logs
 
 springfox:
   documentation:
@@ -65,3 +80,4 @@ springfox:
 halo:
   download-timeout: 5m
   cache: memory
+  work-dir: ${user.home}/.halo/

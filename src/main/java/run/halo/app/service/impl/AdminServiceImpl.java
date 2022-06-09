@@ -2,9 +2,6 @@ package run.halo.app.service.impl;
 
 import static run.halo.app.model.support.HaloConst.DATABASE_PRODUCT_NAME;
 
-import cn.hutool.core.lang.Validator;
-import cn.hutool.core.util.RandomUtil;
-import cn.hutool.core.util.StrUtil;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -15,12 +12,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
-import org.springframework.web.client.RestTemplate;
 import run.halo.app.cache.AbstractStringCacheStore;
 import run.halo.app.config.properties.HaloProperties;
 import run.halo.app.event.logger.LogEvent;
@@ -30,14 +27,12 @@ import run.halo.app.exception.ServiceException;
 import run.halo.app.mail.MailService;
 import run.halo.app.model.dto.EnvironmentDTO;
 import run.halo.app.model.dto.LoginPreCheckDTO;
-import run.halo.app.model.dto.StatisticDTO;
 import run.halo.app.model.entity.User;
-import run.halo.app.model.enums.CommentStatus;
 import run.halo.app.model.enums.LogType;
 import run.halo.app.model.enums.MFAType;
-import run.halo.app.model.enums.PostStatus;
 import run.halo.app.model.params.LoginParam;
 import run.halo.app.model.params.ResetPasswordParam;
+import run.halo.app.model.params.ResetPasswordSendCodeParam;
 import run.halo.app.model.properties.EmailProperties;
 import run.halo.app.model.support.HaloConst;
 import run.halo.app.security.authentication.Authentication;
@@ -45,17 +40,11 @@ import run.halo.app.security.context.SecurityContextHolder;
 import run.halo.app.security.token.AuthToken;
 import run.halo.app.security.util.SecurityUtils;
 import run.halo.app.service.AdminService;
-import run.halo.app.service.AttachmentService;
-import run.halo.app.service.JournalCommentService;
-import run.halo.app.service.LinkService;
 import run.halo.app.service.OptionService;
-import run.halo.app.service.PostCommentService;
-import run.halo.app.service.PostService;
-import run.halo.app.service.SheetCommentService;
-import run.halo.app.service.SheetService;
 import run.halo.app.service.UserService;
 import run.halo.app.utils.HaloUtils;
 import run.halo.app.utils.TwoFactorAuthUtils;
+import run.halo.app.utils.ValidationUtils;
 
 /**
  * Admin service implementation.
@@ -68,60 +57,29 @@ import run.halo.app.utils.TwoFactorAuthUtils;
 @Service
 public class AdminServiceImpl implements AdminService {
 
-    private final PostService postService;
-
-    private final SheetService sheetService;
-
-    private final AttachmentService attachmentService;
-
-    private final PostCommentService postCommentService;
-
-    private final SheetCommentService sheetCommentService;
-
-    private final JournalCommentService journalCommentService;
-
     private final OptionService optionService;
 
     private final UserService userService;
-
-    private final LinkService linkService;
 
     private final MailService mailService;
 
     private final AbstractStringCacheStore cacheStore;
 
-    private final RestTemplate restTemplate;
-
     private final HaloProperties haloProperties;
 
     private final ApplicationEventPublisher eventPublisher;
 
-    public AdminServiceImpl(PostService postService,
-        SheetService sheetService,
-        AttachmentService attachmentService,
-        PostCommentService postCommentService,
-        SheetCommentService sheetCommentService,
-        JournalCommentService journalCommentService,
+    public AdminServiceImpl(
         OptionService optionService,
         UserService userService,
-        LinkService linkService,
         MailService mailService,
         AbstractStringCacheStore cacheStore,
-        RestTemplate restTemplate,
         HaloProperties haloProperties,
         ApplicationEventPublisher eventPublisher) {
-        this.postService = postService;
-        this.sheetService = sheetService;
-        this.attachmentService = attachmentService;
-        this.postCommentService = postCommentService;
-        this.sheetCommentService = sheetCommentService;
-        this.journalCommentService = journalCommentService;
         this.optionService = optionService;
         this.userService = userService;
-        this.linkService = linkService;
         this.mailService = mailService;
         this.cacheStore = cacheStore;
-        this.restTemplate = restTemplate;
         this.haloProperties = haloProperties;
         this.eventPublisher = eventPublisher;
     }
@@ -140,7 +98,7 @@ public class AdminServiceImpl implements AdminService {
 
         try {
             // Get user by username or email
-            user = Validator.isEmail(username)
+            user = ValidationUtils.isEmail(username)
                 ? userService.getByEmailOfNonNull(username) :
                 userService.getByUsernameOfNonNull(username);
         } catch (NotFoundException e) {
@@ -174,7 +132,7 @@ public class AdminServiceImpl implements AdminService {
 
         // check authCode
         if (MFAType.useMFA(user.getMfaType())) {
-            if (StrUtil.isBlank(loginParam.getAuthcode())) {
+            if (StringUtils.isBlank(loginParam.getAuthcode())) {
                 throw new BadRequestException("请输入两步验证码");
             }
             TwoFactorAuthUtils.validateTFACode(user.getMfaKey(), loginParam.getAuthcode());
@@ -227,7 +185,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public void sendResetPasswordCode(ResetPasswordParam param) {
+    public void sendResetPasswordCode(ResetPasswordSendCodeParam param) {
         cacheStore.getAny("code", String.class).ifPresent(code -> {
             throw new ServiceException("已经获取过验证码，不能重复获取");
         });
@@ -237,7 +195,7 @@ public class AdminServiceImpl implements AdminService {
         }
 
         // Gets random code.
-        String code = RandomUtil.randomNumbers(6);
+        String code = RandomStringUtils.randomNumeric(6);
 
         log.info("Got reset password code:{}", code);
 
@@ -292,46 +250,19 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @NonNull
-    public StatisticDTO getCount() {
-        StatisticDTO statisticDTO = new StatisticDTO();
-        statisticDTO.setPostCount(postService.countByStatus(PostStatus.PUBLISHED)
-            + sheetService.countByStatus(PostStatus.PUBLISHED));
-        statisticDTO.setAttachmentCount(attachmentService.count());
-
-        // Handle comment count
-        long postCommentCount = postCommentService.countByStatus(CommentStatus.PUBLISHED);
-        long sheetCommentCount = sheetCommentService.countByStatus(CommentStatus.PUBLISHED);
-        long journalCommentCount = journalCommentService.countByStatus(CommentStatus.PUBLISHED);
-
-        statisticDTO.setCommentCount(postCommentCount + sheetCommentCount + journalCommentCount);
-
-        long birthday = optionService.getBirthday();
-        long days = (System.currentTimeMillis() - birthday) / (1000 * 24 * 3600);
-        statisticDTO.setEstablishDays(days);
-        statisticDTO.setBirthday(birthday);
-
-        statisticDTO.setLinkCount(linkService.count());
-
-        statisticDTO.setVisitCount(postService.countVisit() + sheetService.countVisit());
-        statisticDTO.setLikeCount(postService.countLike() + sheetService.countLike());
-        return statisticDTO;
-    }
-
-    @Override
-    @NonNull
     public EnvironmentDTO getEnvironments() {
-        EnvironmentDTO environmentDTO = new EnvironmentDTO();
+        EnvironmentDTO environmentDto = new EnvironmentDTO();
 
         // Get application start time.
-        environmentDTO.setStartTime(ManagementFactory.getRuntimeMXBean().getStartTime());
+        environmentDto.setStartTime(ManagementFactory.getRuntimeMXBean().getStartTime());
 
-        environmentDTO.setDatabase(DATABASE_PRODUCT_NAME);
+        environmentDto.setDatabase(DATABASE_PRODUCT_NAME);
 
-        environmentDTO.setVersion(HaloConst.HALO_VERSION);
+        environmentDto.setVersion(HaloConst.HALO_VERSION);
 
-        environmentDTO.setMode(haloProperties.getMode());
+        environmentDto.setMode(haloProperties.getMode());
 
-        return environmentDTO;
+        return environmentDto;
     }
 
     @Override
@@ -398,7 +329,7 @@ public class AdminServiceImpl implements AdminService {
 
         List<String> linesArray = new ArrayList<>();
 
-        StringBuilder result = new StringBuilder();
+        final StringBuilder result = new StringBuilder();
 
         if (!file.exists()) {
             return StringUtils.EMPTY;
@@ -458,7 +389,7 @@ public class AdminServiceImpl implements AdminService {
 
         boolean useMFA = true;
         try {
-            final User user = Validator.isEmail(username)
+            final User user = ValidationUtils.isEmail(username)
                 ? userService.getByEmailOfNonNull(username) :
                 userService.getByUsernameOfNonNull(username);
             useMFA = MFAType.useMFA(user.getMfaType());

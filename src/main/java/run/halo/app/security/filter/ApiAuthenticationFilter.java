@@ -50,13 +50,15 @@ public class ApiAuthenticationFilter extends AbstractAuthenticationFilter {
         addExcludeUrlPatterns(
             "/api/content/**/comments",
             "/api/content/**/comments/**",
-            "/api/content/options/comment"
+            "/api/content/options/comment",
+            "/api/content/journals/*/likes",
+            "/api/content/posts/*/likes"
         );
 
         // set failure handler
         DefaultAuthenticationFailureHandler failureHandler =
             new DefaultAuthenticationFailureHandler();
-        failureHandler.setProductionEnv(haloProperties.isProductionEnv());
+        failureHandler.setProductionEnv(haloProperties.getMode().isProductionEnv());
         failureHandler.setObjectMapper(objectMapper);
         setFailureHandler(failureHandler);
     }
@@ -89,7 +91,7 @@ public class ApiAuthenticationFilter extends AbstractAuthenticationFilter {
         Optional<String> optionalAccessKey =
             optionService.getByProperty(ApiProperties.API_ACCESS_KEY, String.class);
 
-        if (!optionalAccessKey.isPresent()) {
+        if (optionalAccessKey.isEmpty()) {
             // If the access key is not set
             throw new AuthenticationException("API access key hasn't been set by blogger");
         }

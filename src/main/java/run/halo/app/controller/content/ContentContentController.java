@@ -1,10 +1,12 @@
 package run.halo.app.controller.content;
 
-import cn.hutool.core.util.IdUtil;
+import static run.halo.app.model.support.HaloConst.POST_PASSWORD_TEMPLATE;
+import static run.halo.app.model.support.HaloConst.SUFFIX_FTL;
+
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
+import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Controller;
@@ -14,8 +16,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import run.halo.app.cache.AbstractStringCacheStore;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import run.halo.app.cache.lock.CacheLock;
+import run.halo.app.controller.content.auth.ContentAuthenticationManager;
+import run.halo.app.controller.content.auth.ContentAuthenticationRequest;
 import run.halo.app.controller.content.model.CategoryModel;
 import run.halo.app.controller.content.model.JournalModel;
 import run.halo.app.controller.content.model.LinkModel;
@@ -23,19 +28,28 @@ import run.halo.app.controller.content.model.PhotoModel;
 import run.halo.app.controller.content.model.PostModel;
 import run.halo.app.controller.content.model.SheetModel;
 import run.halo.app.controller.content.model.TagModel;
+import run.halo.app.exception.AuthenticationException;
 import run.halo.app.exception.NotFoundException;
+import run.halo.app.exception.UnsupportedException;
+import run.halo.app.model.dto.CategoryDTO;
 import run.halo.app.model.dto.post.BasePostMinimalDTO;
+import run.halo.app.model.entity.Category;
 import run.halo.app.model.entity.Post;
 import run.halo.app.model.entity.Sheet;
+import run.halo.app.model.enums.EncryptTypeEnum;
 import run.halo.app.model.enums.PostPermalinkType;
 import run.halo.app.model.enums.PostStatus;
 import run.halo.app.model.enums.SheetPermalinkType;
+import run.halo.app.service.CategoryService;
 import run.halo.app.service.OptionService;
 import run.halo.app.service.PostService;
 import run.halo.app.service.SheetService;
+import run.halo.app.service.ThemeService;
+import run.halo.app.service.assembler.PostRenderAssembler;
 
 /**
  * @author ryanwang
+ * @author guqing
  * @date 2020-01-07
  */
 @Slf4j
@@ -63,7 +77,13 @@ public class ContentContentController {
 
     private final SheetService sheetService;
 
-    private final AbstractStringCacheStore cacheStore;
+    private final CategoryService categoryService;
+
+    private final ThemeService themeService;
+
+    private final PostRenderAssembler postRenderAssembler;
+
+    private final ContentAuthenticationManager providerManager;
 
     public ContentContentController(PostModel postModel,
         SheetModel sheetModel,
@@ -75,7 +95,10 @@ public class ContentContentController {
         OptionService optionService,
         PostService postService,
         SheetService sheetService,
-        AbstractStringCacheStore cacheStore) {
+        CategoryService categoryService,
+        ThemeService themeService,
+        PostRenderAssembler postRenderAssembler,
+        ContentAuthenticationManager providerManager) {
         this.postModel = postModel;
         this.sheetModel = sheetModel;
         this.categoryModel = categoryModel;
@@ -86,7 +109,10 @@ public class ContentContentController {
         this.optionService = optionService;
         this.postService = postService;
         this.sheetService = sheetService;
-        this.cacheStore = cacheStore;
+        this.categoryService = categoryService;
+        this.themeService = themeService;
+        this.postRenderAssembler = postRenderAssembler;
+        this.providerManager = providerManager;
     }
 
     @GetMapping("{prefix}")
@@ -115,12 +141,14 @@ public class ContentContentController {
             Sheet sheet = sheetService.getBySlug(prefix);
             return sheetModel.content(sheet, token, model);
         }
-        throw new NotFoundException("Not Found");
+
+        throw buildPathNotFoundException();
     }
 
     @GetMapping("{prefix}/page/{page:\\d+}")
     public String content(@PathVariable("prefix") String prefix,
         @PathVariable(value = "page") Integer page,
+        HttpServletRequest request,
         Model model) {
         if (optionService.getArchivesPrefix().equals(prefix)) {
             return postModel.archives(page, model);
@@ -134,7 +162,7 @@ public class ContentContentController {
             return photoModel.list(page, model);
         }
 
-        throw new NotFoundException("Not Found");
+        throw buildPathNotFoundException();
     }
 
     @GetMapping("{prefix}/{slug}")
@@ -175,7 +203,7 @@ public class ContentContentController {
             return sheetModel.content(sheet, token, model);
         }
 
-        throw new NotFoundException("Not Found");
+        throw buildPathNotFoundException();
     }
 
     @GetMapping("{prefix}/{slug}/page/{page:\\d+}")
@@ -191,7 +219,7 @@ public class ContentContentController {
             return tagModel.listPost(model, slug, page);
         }
 
-        throw new NotFoundException("Not Found");
+        throw buildPathNotFoundException();
     }
 
     @GetMapping("{year:\\d+}/{month:\\d+}/{slug}")
@@ -206,7 +234,7 @@ public class ContentContentController {
             return postModel.content(post, token, model);
         }
 
-        throw new NotFoundException("Not Found");
+        throw buildPathNotFoundException();
     }
 
     @GetMapping("{year:\\d+}/{month:\\d+}/{day:\\d+}/{slug}")
@@ -222,40 +250,91 @@ public class ContentContentController {
             return postModel.content(post, token, model);
         }
 
-        throw new NotFoundException("Not Found");
+        throw buildPathNotFoundException();
     }
 
-    @PostMapping(value = "archives/{slug:.*}/password")
+    @PostMapping(value = "content/{type}/{slug:.*}/authentication")
     @CacheLock(traceRequest = true, expired = 2)
-    public String password(@PathVariable("slug") String slug,
-        @RequestParam(value = "password") String password) throws UnsupportedEncodingException {
+    public String password(@PathVariable("type") String type,
+        @PathVariable("slug") String slug,
+        @RequestParam(value = "password") String password,
+        HttpServletRequest request) throws UnsupportedEncodingException {
+        if (EncryptTypeEnum.POST.getName().equals(type)) {
+            return authenticatePost(slug, type, password, request);
+        } else if (EncryptTypeEnum.CATEGORY.getName().equals(type)) {
+            return authenticateCategory(slug, type, password, request);
+        } else {
+            throw new UnsupportedException("未知的加密类型");
+        }
+    }
+
+    private String authenticatePost(String slug, String type, String password,
+        HttpServletRequest request) {
+        ContentAuthenticationRequest authRequest = new ContentAuthenticationRequest();
+        authRequest.setPassword(password);
         Post post = postService.getBy(PostStatus.INTIMATE, slug);
+        post.setSlug(URLEncoder.encode(post.getSlug(), StandardCharsets.UTF_8));
 
-        post.setSlug(URLEncoder.encode(post.getSlug(), StandardCharsets.UTF_8.name()));
+        authRequest.setId(post.getId());
+        authRequest.setPrincipal(EncryptTypeEnum.POST.getName());
+        try {
+            providerManager.authenticate(authRequest);
+            BasePostMinimalDTO basePostMinimal = postRenderAssembler.convertToMinimal(post);
+            return "redirect:" + buildRedirectUrl(basePostMinimal.getFullPath());
+        } catch (AuthenticationException e) {
+            request.setAttribute("errorMsg", e.getMessage());
+            request.setAttribute("type", type);
+            request.setAttribute("slug", slug);
+            return getPasswordPageUriToForward();
+        }
+    }
 
-        BasePostMinimalDTO postMinimalDTO = postService.convertToMinimal(post);
+    private String authenticateCategory(String slug, String type, String password,
+        HttpServletRequest request) {
+        ContentAuthenticationRequest authRequest = new ContentAuthenticationRequest();
+        authRequest.setPassword(password);
+        Category category = categoryService.getBySlugOfNonNull(slug);
+        category.setSlug(URLEncoder.encode(category.getSlug(), StandardCharsets.UTF_8));
 
+        authRequest.setId(category.getId());
+        authRequest.setPrincipal(EncryptTypeEnum.CATEGORY.getName());
+        try {
+            providerManager.authenticate(authRequest);
+            CategoryDTO categoryDto = categoryService.convertTo(category);
+            return "redirect:" + buildRedirectUrl(categoryDto.getFullPath());
+        } catch (AuthenticationException e) {
+            request.setAttribute("errorMsg", e.getMessage());
+            request.setAttribute("type", type);
+            request.setAttribute("slug", slug);
+            return getPasswordPageUriToForward();
+        }
+    }
+
+    private String getPasswordPageUriToForward() {
+        if (themeService.templateExists(POST_PASSWORD_TEMPLATE + SUFFIX_FTL)) {
+            return themeService.render(POST_PASSWORD_TEMPLATE);
+        }
+        return "common/template/" + POST_PASSWORD_TEMPLATE;
+    }
+
+    private NotFoundException buildPathNotFoundException() {
+        var requestAttributes = RequestContextHolder.currentRequestAttributes();
+
+        var requestUri = "";
+        if (requestAttributes instanceof ServletRequestAttributes) {
+            requestUri =
+                ((ServletRequestAttributes) requestAttributes).getRequest().getRequestURI();
+        }
+        return new NotFoundException("无法定位到该路径：" + requestUri);
+    }
+
+    private String buildRedirectUrl(String fullPath) {
         StringBuilder redirectUrl = new StringBuilder();
 
         if (!optionService.isEnabledAbsolutePath()) {
             redirectUrl.append(optionService.getBlogBaseUrl());
         }
-
-        redirectUrl.append(postMinimalDTO.getFullPath());
-
-        if (password.equals(post.getPassword())) {
-            String token = IdUtil.simpleUUID();
-            cacheStore.putAny(token, token, 10, TimeUnit.SECONDS);
-
-            if (optionService.getPostPermalinkType().equals(PostPermalinkType.ID)) {
-                redirectUrl.append("&token=")
-                    .append(token);
-            } else {
-                redirectUrl.append("?token=")
-                    .append(token);
-            }
-        }
-
-        return "redirect:" + redirectUrl;
+        redirectUrl.append(fullPath);
+        return redirectUrl.toString();
     }
 }

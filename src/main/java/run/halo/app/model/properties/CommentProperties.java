@@ -12,7 +12,7 @@ public enum CommentProperties implements PropertyEnum {
     /**
      * The default gravatar type.
      */
-    GRAVATAR_DEFAULT("comment_gravatar_default", String.class, "mm"),
+    GRAVATAR_DEFAULT("comment_gravatar_default", String.class, ""),
 
     /**
      * Does it need to be checked.
@@ -48,7 +48,12 @@ public enum CommentProperties implements PropertyEnum {
      * Dependent comment js.
      */
     INTERNAL_PLUGIN_JS("comment_internal_plugin_js", String.class,
-        "//cdn.jsdelivr.net/npm/halo-comment@latest/dist/halo-comment.min.js"),
+        "https://unpkg.com/halo-comment@latest/dist/halo-comment.min.js"),
+
+    /**
+     * Gravatar mirror source base url.
+     */
+    GRAVATAR_SOURCE("gravatar_source", String.class, "//gravatar.com/avatar/"),
 
     COMMENT_BAN_TIME("comment_ban_time", Integer.class, "10"),
 

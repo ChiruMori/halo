@@ -1,10 +1,11 @@
 package run.halo.app.controller.admin.api;
 
 import static org.springframework.data.domain.Sort.Direction.ASC;
-import static org.springframework.data.domain.Sort.Direction.DESC;
 
 import io.swagger.annotations.ApiOperation;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import javax.validation.Valid;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.SortDefault;
@@ -53,7 +54,7 @@ public class CategoryController {
     @GetMapping
     @ApiOperation("Lists all categories")
     public List<? extends CategoryDTO> listAll(
-        @SortDefault(sort = "createTime", direction = DESC) Sort sort,
+        @SortDefault(sort = "priority", direction = ASC) Sort sort,
         @RequestParam(name = "more", required = false, defaultValue = "false") boolean more) {
         if (more) {
             return postCategoryService.listCategoryWithPostCountDto(sort);
@@ -64,7 +65,8 @@ public class CategoryController {
 
     @GetMapping("tree_view")
     @ApiOperation("List all categories as tree")
-    public List<CategoryVO> listAsTree(@SortDefault(sort = "name", direction = ASC) Sort sort) {
+    public List<CategoryVO> listAsTree(
+        @SortDefault(sort = "priority", direction = ASC) Sort sort) {
         return categoryService.listAsTree(sort);
     }
 
@@ -81,10 +83,25 @@ public class CategoryController {
     @PutMapping("{categoryId:\\d+}")
     @ApiOperation("Updates category")
     public CategoryDTO updateBy(@PathVariable("categoryId") Integer categoryId,
-        @RequestBody @Valid CategoryParam categoryParam) {
+        @RequestBody @Valid CategoryParam categoryParam
+    ) {
         Category categoryToUpdate = categoryService.getById(categoryId);
         categoryParam.update(categoryToUpdate);
         return categoryService.convertTo(categoryService.update(categoryToUpdate));
+    }
+
+    @PutMapping("/batch")
+    @ApiOperation("Updates category in batch")
+    public List<CategoryDTO> updateBatchBy(@RequestBody List<@Valid CategoryParam> categoryParams) {
+        List<Category> categoriesToUpdate = categoryParams.stream()
+            .filter(categoryParam -> Objects.nonNull(categoryParam.getId()))
+            .map(categoryParam -> {
+                Category categoryToUpdate = categoryService.getById(categoryParam.getId());
+                categoryParam.update(categoryToUpdate);
+                return categoryToUpdate;
+            })
+            .collect(Collectors.toList());
+        return categoryService.convertTo(categoryService.updateInBatch(categoriesToUpdate));
     }
 
     @DeleteMapping("{categoryId:\\d+}")

@@ -73,6 +73,19 @@ public class Category extends BaseEntity {
     @ColumnDefault("0")
     private Integer parentId;
 
+    /**
+     * Priority category.
+     */
+    @Column(name = "priority")
+    @ColumnDefault("0")
+    private Integer priority;
+
+    /**
+     * Category password.
+     */
+    @Column(name = "password")
+    private String password;
+
     @Override
     public void prePersist() {
         super.prePersist();
@@ -83,6 +96,10 @@ public class Category extends BaseEntity {
 
         if (parentId == null || parentId < 0) {
             parentId = 0;
+        }
+
+        if (priority == null) {
+            priority = 0;
         }
     }
 

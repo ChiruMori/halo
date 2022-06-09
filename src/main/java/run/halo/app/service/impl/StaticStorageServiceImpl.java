@@ -1,6 +1,5 @@
 package run.halo.app.service.impl;
 
-import cn.hutool.core.util.IdUtil;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
@@ -28,6 +27,7 @@ import run.halo.app.exception.ServiceException;
 import run.halo.app.model.support.StaticFile;
 import run.halo.app.service.StaticStorageService;
 import run.halo.app.utils.FileUtils;
+import run.halo.app.utils.HaloUtils;
 
 /**
  * StaticStorageService implementation class.
@@ -53,7 +53,12 @@ public class StaticStorageServiceImpl
 
     @Override
     public List<StaticFile> listStaticFolder() {
-        return listStaticFileTree(staticDir);
+
+        List<StaticFile> staticFiles = listStaticFileTree(staticDir);
+
+        onChange(); // To update the mapping of local files.
+
+        return staticFiles;
     }
 
     @Nullable
@@ -69,7 +74,7 @@ public class StaticStorageServiceImpl
 
             pathStream.forEach(path -> {
                 StaticFile staticFile = new StaticFile();
-                staticFile.setId(IdUtil.fastSimpleUUID());
+                staticFile.setId(HaloUtils.simpleUUID());
                 staticFile.setName(path.getFileName().toString());
                 staticFile.setPath(path.toString());
                 staticFile.setRelativePath(

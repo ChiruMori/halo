@@ -5,11 +5,10 @@ import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 
 /**
- * <pre>
- *     公共常量
- * </pre>
+ * Halo constants.
  *
  * @author ryanwang
+ * @author guqing
  * @date 2017/12/29
  */
 public class HaloConst {
@@ -17,12 +16,12 @@ public class HaloConst {
     /**
      * User home directory.
      */
-    public static final String USER_HOME = System.getProperties().getProperty("user.home");
+    public static final String USER_HOME = System.getProperty("user.home");
 
     /**
      * Temporary directory.
      */
-    public static final String TEMP_DIR = "/tmp/run.halo.app";
+    public static final String TEMP_DIR = System.getProperty("java.io.tmpdir");
 
     public static final String PROTOCOL_HTTPS = "https://";
 
@@ -51,9 +50,19 @@ public class HaloConst {
     public static final String DEFAULT_THEME_ID = "caicai_anatole";
 
     /**
+     * Default theme directory name.
+     */
+    public static final String DEFAULT_THEME_DIR_NAME = "anatole";
+
+    /**
      * Default error path.
      */
     public static final String DEFAULT_ERROR_PATH = "common/error/error";
+
+    /**
+     * Default tag color.
+     */
+    public static final String DEFAULT_TAG_COLOR = "#cfd3d7";
 
     /**
      * Path separator.
@@ -64,8 +73,9 @@ public class HaloConst {
      * Post password template name.
      */
     public static final String POST_PASSWORD_TEMPLATE = "post_password";
+
     /**
-     * Suffix of freemarker template file
+     * Suffix of freemarker template file.
      */
     public static final String SUFFIX_FTL = ".ftl";
     /**
@@ -154,6 +164,13 @@ public class HaloConst {
      * Database product name.
      */
     public static String DATABASE_PRODUCT_NAME = null;
+
+    /**
+     * Options cache key.
+     */
+    public static final String OPTIONS_CACHE_KEY = "options";
+
+    public static final String PRIVATE_OPTION_KEY = "private_options";
 
     static {
         // Set version

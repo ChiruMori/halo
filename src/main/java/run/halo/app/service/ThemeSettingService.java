@@ -2,9 +2,11 @@ package run.halo.app.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.annotation.Transactional;
+import run.halo.app.handler.theme.config.support.Item;
 import run.halo.app.model.entity.ThemeSetting;
 import run.halo.app.service.base.CrudService;
 
@@ -15,7 +17,6 @@ import run.halo.app.service.base.CrudService;
  * @date 2019-04-08
  */
 public interface ThemeSettingService extends CrudService<ThemeSetting, Integer> {
-
 
     /**
      * Saves theme setting.
@@ -57,13 +58,14 @@ public interface ThemeSettingService extends CrudService<ThemeSetting, Integer> 
     Map<String, Object> listAsMapBy(@NonNull String themeId);
 
     /**
-     * Replace theme setting url in batch.
+     * Lists theme settings as map by <code>themeId</code> and <code>group</code> name.
      *
-     * @param oldUrl old blog url.
-     * @param newUrl new blog url.
-     * @return replaced theme settings.
+     * @param themeId theme id must not be blank.
+     * @param group theme group name must not be blank.
+     * @return theme setting map(key: item name, value: item)
      */
-    List<ThemeSetting> replaceUrl(@NonNull String oldUrl, @NonNull String newUrl);
+    @NonNull
+    Map<String, Object> listAsMapBy(String themeId, String group);
 
     /**
      * Delete unused theme setting.

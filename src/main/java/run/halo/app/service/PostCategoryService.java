@@ -22,6 +22,7 @@ import run.halo.app.service.base.CrudService;
  *
  * @author johnniang
  * @author ryanwang
+ * @author guqing
  * @date 2019-03-19
  */
 public interface PostCategoryService extends CrudService<PostCategory, Integer> {
@@ -64,6 +65,16 @@ public interface PostCategoryService extends CrudService<PostCategory, Integer> 
     List<Post> listPostBy(@NonNull Integer categoryId, @NonNull PostStatus status);
 
     /**
+     * Lists post by category id and post status.
+     *
+     * @param categoryId category id must not be null
+     * @param status     post status
+     * @return a list of post
+     */
+    @NonNull
+    List<Post> listPostBy(@NonNull Integer categoryId, @NonNull Set<PostStatus> status);
+
+    /**
      * Lists post by category slug and post status.
      *
      * @param slug category slug must not be null
@@ -72,6 +83,16 @@ public interface PostCategoryService extends CrudService<PostCategory, Integer> 
      */
     @NonNull
     List<Post> listPostBy(@NonNull String slug, @NonNull PostStatus status);
+
+    /**
+     * Lists post by category slug and post status.
+     *
+     * @param slug   category slug must not be null
+     * @param status post status
+     * @return a list of post
+     */
+    @NonNull
+    List<Post> listPostBy(@NonNull String slug, @NonNull Set<PostStatus> status);
 
     /**
      * Pages post by category id.
@@ -94,6 +115,18 @@ public interface PostCategoryService extends CrudService<PostCategory, Integer> 
     @NonNull
     Page<Post> pagePostBy(@NonNull Integer categoryId, @NonNull PostStatus status,
         Pageable pageable);
+
+    /**
+     * Pages post by category id and post status.
+     *
+     * @param categoryId category id must not be null
+     * @param status     post status
+     * @param pageable   pageable
+     * @return page of post
+     */
+    @NonNull
+    Page<Post> pagePostBy(
+        @NonNull Integer categoryId, @NonNull Set<PostStatus> status, Pageable pageable);
 
     /**
      * Merges or creates post categories by post id and category id set if absent.
@@ -161,4 +194,13 @@ public interface PostCategoryService extends CrudService<PostCategory, Integer> 
      */
     @NonNull
     List<CategoryWithPostCountDTO> listCategoryWithPostCountDto(@NonNull Sort sort);
+
+    /**
+     * Lists by category id.
+     *
+     * @param categoryIdList category id must not be empty
+     * @return a list of post category
+     */
+    @NonNull
+    List<PostCategory> listByCategoryIdList(@NonNull List<Integer> categoryIdList);
 }

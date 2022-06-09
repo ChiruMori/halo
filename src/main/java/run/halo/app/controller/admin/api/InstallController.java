@@ -1,6 +1,5 @@
 package run.halo.app.controller.admin.api;
 
-import cn.hutool.crypto.SecureUtil;
 import io.swagger.annotations.ApiOperation;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,6 +7,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.Nullable;
@@ -43,6 +43,7 @@ import run.halo.app.service.PostCommentService;
 import run.halo.app.service.PostService;
 import run.halo.app.service.SheetService;
 import run.halo.app.service.UserService;
+import run.halo.app.utils.DateUtils;
 import run.halo.app.utils.ValidationUtils;
 
 /**
@@ -279,7 +280,7 @@ public class InstallController {
             return userService.update(user);
         }).orElseGet(() -> {
             String gravatar =
-                "//cn.gravatar.com/avatar/" + SecureUtil.md5(installParam.getEmail())
+                "//cn.gravatar.com/avatar/" + DigestUtils.md5Hex(installParam.getEmail())
                     + "?s=256&d=mm";
             installParam.setAvatar(gravatar);
             return userService.createBy(installParam);
@@ -295,21 +296,8 @@ public class InstallController {
         properties.put(BlogProperties.BLOG_URL,
             StringUtils.isBlank(installParam.getUrl()) ? optionService.getBlogBaseUrl() :
                 installParam.getUrl());
-
-        Long birthday =
-            optionService.getByPropertyOrDefault(PrimaryProperties.BIRTHDAY, Long.class, 0L);
-
-        if (birthday.equals(0L)) {
-            properties.put(PrimaryProperties.BIRTHDAY, String.valueOf(System.currentTimeMillis()));
-        }
-
-        Boolean globalAbsolutePathEnabled = optionService
-            .getByPropertyOrDefault(OtherProperties.GLOBAL_ABSOLUTE_PATH_ENABLED, Boolean.class,
-                null);
-
-        if (globalAbsolutePathEnabled == null) {
-            properties.put(OtherProperties.GLOBAL_ABSOLUTE_PATH_ENABLED, Boolean.FALSE.toString());
-        }
+        properties.put(OtherProperties.GLOBAL_ABSOLUTE_PATH_ENABLED, Boolean.FALSE.toString());
+        properties.put(PrimaryProperties.BIRTHDAY, String.valueOf(DateUtils.now().getTime()));
 
         // Create properties
         optionService.saveProperties(properties);

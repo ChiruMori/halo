@@ -5,6 +5,8 @@ import static run.halo.app.model.support.HaloConst.ADMIN_TOKEN_QUERY_NAME;
 import static run.halo.app.model.support.HaloConst.API_ACCESS_KEY_HEADER_NAME;
 import static run.halo.app.model.support.HaloConst.API_ACCESS_KEY_QUERY_NAME;
 import static run.halo.app.model.support.HaloConst.HALO_VERSION;
+import static run.halo.app.utils.SwaggerUtils.customMixin;
+import static run.halo.app.utils.SwaggerUtils.propertyBuilder;
 import static springfox.documentation.schema.AlternateTypeRules.newRule;
 
 import com.fasterxml.classmate.TypeResolver;
@@ -19,30 +21,26 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.lang.NonNull;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
-import org.springframework.web.bind.annotation.RequestMethod;
-import run.halo.app.config.properties.HaloProperties;
-import run.halo.app.model.entity.User;
-import run.halo.app.security.support.UserDetail;
-import springfox.documentation.builders.AlternateTypeBuilder;
-import springfox.documentation.builders.AlternateTypePropertyBuilder;
+import org.springframework.util.PathMatcher;
+import run.halo.app.utils.SwaggerUtils;
 import springfox.documentation.builders.ApiInfoBuilder;
 import springfox.documentation.builders.PathSelectors;
 import springfox.documentation.builders.RequestHandlerSelectors;
-import springfox.documentation.builders.ResponseMessageBuilder;
 import springfox.documentation.schema.AlternateTypeRule;
 import springfox.documentation.schema.AlternateTypeRuleConvention;
+import springfox.documentation.schema.WildcardType;
 import springfox.documentation.service.ApiInfo;
 import springfox.documentation.service.ApiKey;
 import springfox.documentation.service.AuthorizationScope;
 import springfox.documentation.service.Contact;
-import springfox.documentation.service.ResponseMessage;
 import springfox.documentation.service.SecurityReference;
 import springfox.documentation.service.SecurityScheme;
-import springfox.documentation.spi.DocumentationType;
 import springfox.documentation.spi.service.contexts.SecurityContext;
 import springfox.documentation.spring.web.plugins.Docket;
 import springfox.documentation.swagger.web.DocExpansion;
@@ -67,20 +65,6 @@ import springfox.documentation.swagger.web.UiConfigurationBuilder;
     matchIfMissing = true)
 public class SwaggerConfiguration {
 
-    private final HaloProperties haloProperties;
-
-    private final List<ResponseMessage> globalResponses = Arrays.asList(
-        new ResponseMessageBuilder().code(200).message("Success").build(),
-        new ResponseMessageBuilder().code(400).message("Bad request").build(),
-        new ResponseMessageBuilder().code(401).message("Unauthorized").build(),
-        new ResponseMessageBuilder().code(403).message("Forbidden").build(),
-        new ResponseMessageBuilder().code(404).message("Not found").build(),
-        new ResponseMessageBuilder().code(500).message("Internal server error").build());
-
-    public SwaggerConfiguration(HaloProperties haloProperties) {
-        this.haloProperties = haloProperties;
-    }
-
     @Bean
     public Docket haloDefaultApi() {
         return buildApiDocket("run.halo.app.content.api",
@@ -92,10 +76,6 @@ public class SwaggerConfiguration {
 
     @Bean
     public Docket haloAdminApi() {
-        if (haloProperties.isDocDisabled()) {
-            log.debug("Doc has been disabled");
-        }
-
         return buildApiDocket("run.halo.app.admin.api",
             "run.halo.app.controller.admin",
             "/api/admin/**")
@@ -143,65 +123,68 @@ public class SwaggerConfiguration {
         Assert.hasText(basePackage, "Base package must not be blank");
         Assert.hasText(antPattern, "Ant pattern must not be blank");
 
-        return new Docket(DocumentationType.SWAGGER_2)
+        return SwaggerUtils.defaultDocket()
             .groupName(groupName)
             .select()
             .apis(RequestHandlerSelectors.basePackage(basePackage))
             .paths(PathSelectors.ant(antPattern))
             .build()
             .apiInfo(apiInfo())
-            .useDefaultResponseMessages(false)
-            .globalResponseMessage(RequestMethod.GET, globalResponses)
-            .globalResponseMessage(RequestMethod.POST, globalResponses)
-            .globalResponseMessage(RequestMethod.DELETE, globalResponses)
-            .globalResponseMessage(RequestMethod.PUT, globalResponses)
             .directModelSubstitute(Temporal.class, String.class);
     }
 
     private List<SecurityScheme> adminApiKeys() {
         return Arrays.asList(
-            new ApiKey("Token from header", ADMIN_TOKEN_HEADER_NAME, In.HEADER.name()),
-            new ApiKey("Token from query", ADMIN_TOKEN_QUERY_NAME, In.QUERY.name())
+            new ApiKey(ADMIN_TOKEN_HEADER_NAME, ADMIN_TOKEN_HEADER_NAME, In.HEADER.name()),
+            new ApiKey(ADMIN_TOKEN_QUERY_NAME, ADMIN_TOKEN_QUERY_NAME, In.QUERY.name())
         );
     }
 
     private List<SecurityContext> adminSecurityContext() {
+        final PathMatcher pathMatcher = new AntPathMatcher();
         return Collections.singletonList(
             SecurityContext.builder()
-                .securityReferences(defaultAuth())
-                .forPaths(PathSelectors.regex("/api/admin/.*"))
+                .securityReferences(adminApiAuths())
+                .operationSelector(operationContext -> {
+                    var requestMappingPattern = operationContext.requestMappingPattern();
+                    return pathMatcher.match("/api/admin/**/*", requestMappingPattern);
+                })
                 .build()
         );
     }
 
     private List<SecurityScheme> contentApiKeys() {
         return Arrays.asList(
-            new ApiKey("Access key from header", API_ACCESS_KEY_HEADER_NAME, In.HEADER.name()),
-            new ApiKey("Access key from query", API_ACCESS_KEY_QUERY_NAME, In.QUERY.name())
+            new ApiKey(API_ACCESS_KEY_HEADER_NAME, API_ACCESS_KEY_HEADER_NAME, In.HEADER.name()),
+            new ApiKey(API_ACCESS_KEY_QUERY_NAME, API_ACCESS_KEY_QUERY_NAME, In.QUERY.name())
         );
     }
 
     private List<SecurityContext> contentSecurityContext() {
+        final PathMatcher pathMatcher = new AntPathMatcher();
         return Collections.singletonList(
             SecurityContext.builder()
-                .securityReferences(contentApiAuth())
-                .forPaths(PathSelectors.regex("/api/content/.*"))
+                .securityReferences(contentApiAuths())
+                .operationSelector(operationContext -> {
+                    var requestMappingPattern = operationContext.requestMappingPattern();
+                    return pathMatcher.match("/api/content/**/*", requestMappingPattern);
+                })
                 .build()
         );
     }
 
-    private List<SecurityReference> defaultAuth() {
+    private List<SecurityReference> adminApiAuths() {
         AuthorizationScope[] authorizationScopes =
             {new AuthorizationScope("Admin api", "Access admin api")};
-        return Arrays.asList(new SecurityReference("Token from header", authorizationScopes),
-            new SecurityReference("Token from query", authorizationScopes));
+        return Arrays.asList(new SecurityReference(ADMIN_TOKEN_HEADER_NAME, authorizationScopes),
+            new SecurityReference(ADMIN_TOKEN_QUERY_NAME, authorizationScopes));
     }
 
-    private List<SecurityReference> contentApiAuth() {
+    private List<SecurityReference> contentApiAuths() {
         AuthorizationScope[] authorizationScopes =
             {new AuthorizationScope("content api", "Access content api")};
-        return Arrays.asList(new SecurityReference("Access key from header", authorizationScopes),
-            new SecurityReference("Access key from query", authorizationScopes));
+        return Arrays.asList(new SecurityReference(API_ACCESS_KEY_HEADER_NAME, authorizationScopes),
+            new SecurityReference(API_ACCESS_KEY_QUERY_NAME, authorizationScopes));
     }
 
     private ApiInfo apiInfo() {
@@ -228,56 +211,55 @@ public class SwaggerConfiguration {
             @Override
             public List<AlternateTypeRule> rules() {
                 return Arrays.asList(
-                    newRule(User.class, emptyMixin(User.class)),
-                    newRule(UserDetail.class, emptyMixin(UserDetail.class)),
+                    newRule(resolver.resolve(Page.class, WildcardType.class),
+                        resolver.resolve(CustomizedPage.class, WildcardType.class)),
                     newRule(resolver.resolve(Pageable.class), resolver.resolve(pageableMixin())),
                     newRule(resolver.resolve(Sort.class), resolver.resolve(sortMixin())));
             }
         };
     }
 
-    /**
-     * For controller parameter(like eg: HttpServletRequest, ModelView ...).
-     *
-     * @param clazz controller parameter class type must not be null
-     * @return empty type
-     */
-    private Type emptyMixin(Class<?> clazz) {
-        Assert.notNull(clazz, "class type must not be null");
-
-        return new AlternateTypeBuilder()
-            .fullyQualifiedClassName(String
-                .format("%s.generated.%s", clazz.getPackage().getName(), clazz.getSimpleName()))
-            .withProperties(Collections.emptyList())
-            .build();
-    }
-
     private Type sortMixin() {
-        return new AlternateTypeBuilder()
-            .fullyQualifiedClassName(String
-                .format("%s.generated.%s", Sort.class.getPackage().getName(),
-                    Sort.class.getSimpleName()))
-            .withProperties(Collections.singletonList(property(String[].class, "sort")))
-            .build();
+        return customMixin(Sort.class,
+            Collections.singletonList(propertyBuilder(String[].class, "sort")));
     }
 
     private Type pageableMixin() {
-        return new AlternateTypeBuilder()
-            .fullyQualifiedClassName(String
-                .format("%s.generated.%s", Pageable.class.getPackage().getName(),
-                    Pageable.class.getSimpleName()))
-            .withProperties(Arrays
-                .asList(property(Integer.class, "page"), property(Integer.class, "size"),
-                    property(String[].class, "sort")))
-            .build();
+        return customMixin(Pageable.class, Arrays.asList(
+            propertyBuilder(Integer.class, "page"),
+            propertyBuilder(Integer.class, "size"),
+            propertyBuilder(String[].class, "sort")
+        ));
     }
 
-    private AlternateTypePropertyBuilder property(Class<?> type, String name) {
-        return new AlternateTypePropertyBuilder()
-            .withName(name)
-            .withType(type)
-            .withCanRead(true)
-            .withCanWrite(true);
+    /**
+     * Alternative page type.
+     *
+     * @param <T> content type
+     * @author johnniang
+     */
+    interface CustomizedPage<T> {
+
+        List<T> getContent();
+
+        int getPage();
+
+        int getPages();
+
+        long getTotal();
+
+        int getRpp();
+
+        boolean getHasNext();
+
+        boolean getHasPrevious();
+
+        boolean getIsFirst();
+
+        boolean getIsEmpty();
+
+        boolean getHasContent();
+
     }
 
 }
